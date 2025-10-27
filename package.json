@@ -1,5 +1,5 @@
 {
-  "name": "eritrea-dashboard-export",
+  "name": "eritrea-metadata-export",
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
