@@ -7,7 +7,6 @@ export class DashboardUtil {
     'Content-Type': string;
   };
   private _baseUrl: string;
-  private pageSize = 200;
 
   constructor() {
     this._baseUrl = sourceConfig.baseUrl;
@@ -29,10 +28,10 @@ export class DashboardUtil {
         this._headers,
         `${this._baseUrl}/api/dashboards?fields=id&paging=false`
       );
-        const dashboards = response?.dashboards ?? [];
-        for (const dashboard of dashboards) {
-          dashboardIds.push(dashboard.id);
-        }
+      const dashboards = response?.dashboards ?? [];
+      for (const dashboard of dashboards) {
+        dashboardIds.push(dashboard.id);
+      }
     } catch (error) {
       await new LogsUtil().addLogs(
         'error',
