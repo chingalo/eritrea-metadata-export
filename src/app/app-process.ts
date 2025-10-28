@@ -1,5 +1,14 @@
-import { map, filter, keys, flattenDeep } from 'lodash';
-import { DashboardUtil, FileUtil, LogsUtil } from '../utils';
+import { map, filter, keys, flattenDeep, first, uniq } from 'lodash';
+import {
+  DashboardUtil,
+  DataElementUtil,
+  ExcelUtil,
+  FileUtil,
+  LogsUtil,
+  ProgramIndicatorUtil
+} from '../utils';
+import { sourceConfig } from '../configs';
+import { ProgramIndicatorModel } from '../models';
 
 export class AppProcess {
   constructor() {}
@@ -7,9 +16,10 @@ export class AppProcess {
   async startProcess() {
     try {
       await new LogsUtil().addLogs('info', `Starting up the process`, 'app');
+      await this._DiscoverAndSaveDataExchangeConfig();
       const dashboardIds = await new DashboardUtil().getDashboardIds();
       for (const dashboardId of dashboardIds) {
-        await this.DiscoverAndSaveDahboardConfig(dashboardId);
+        await this._DiscoverAndSaveDahboardConfig(dashboardId);
       }
       await new LogsUtil().addLogs(
         'info',
@@ -21,7 +31,77 @@ export class AppProcess {
     }
   }
 
-  private async DiscoverAndSaveDahboardConfig(dashboardId: string) {
+  async _DiscoverAndSaveDataExchangeConfig() {
+    await new LogsUtil().addLogs(
+      'info',
+      `Discovering program indicators for data exchange config`,
+      'app'
+    );
+    const programIndicators =
+      await new ProgramIndicatorUtil().getProgramIndicators(
+        sourceConfig.dataExportAttribute
+      );
+
+    await new LogsUtil().addLogs(
+      'info',
+      `Discovering  associated data elements for data exchange config`,
+      'app'
+    );
+    const dataElements = await new DataElementUtil().getDataElements(
+      uniq(
+        flattenDeep(
+          map(programIndicators, (programIndicator) =>
+            this._getDataElementCodeFormProgramIndicator(programIndicator)
+          )
+        )
+      )
+    );
+    await new LogsUtil().addLogs('info', `Saving data exchange config`, 'app');
+    await new ExcelUtil('data-exchange-config').writeToSingleSheetExcelFile(
+      map(programIndicators, (programIndicator) => {
+        const dataElementCode =
+          this._getDataElementCodeFormProgramIndicator(programIndicator);
+        const dataElement = dataElements.find(
+          (dataElement) => dataElement.code === dataElementCode
+        );
+        const {
+          id: programIndicatorId,
+          name: programIndicatorName,
+          aggregateExportCategoryOptionCombo,
+          expression,
+          filter
+        } = programIndicator;
+        const { id: dataElementId, name: dataElementName } = dataElement || {};
+        return {
+          programIndicatorId,
+          programIndicatorName,
+          expression,
+          filter,
+          dataElementCode,
+          aggregateExportCategoryOptionCombo,
+          dataElementId,
+          dataElementName
+        };
+      })
+    );
+  }
+
+  _getDataElementCodeFormProgramIndicator(
+    programIndicator: ProgramIndicatorModel
+  ) {
+    const { attributeValues } = programIndicator;
+    const dataElementAttribute = filter(
+      attributeValues,
+      (attributeValue) =>
+        attributeValue.attribute &&
+        attributeValue.attribute.id === sourceConfig.dataExportAttribute
+    );
+    return dataElementAttribute.length > 0
+      ? (first(dataElementAttribute)?.value ?? '')
+      : '';
+  }
+
+  async _DiscoverAndSaveDahboardConfig(dashboardId: string) {
     const dashboardConfig = await new DashboardUtil().getDashboardConfig(
       dashboardId
     );
